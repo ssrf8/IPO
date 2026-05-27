@@ -22,8 +22,9 @@ export async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 
 
 async function fallbackGetJson<T>(url: string, timeoutMs: number, originalError: unknown): Promise<T> {
   try {
+    const curlCommand = process.platform === "win32" ? "curl.exe" : "curl";
     const { stdout } = await execFileAsync(
-      "curl.exe",
+      curlCommand,
       ["-sS", "--max-time", String(Math.max(2, Math.ceil(timeoutMs / 1000))), url],
       {
         timeout: timeoutMs + 5_000,

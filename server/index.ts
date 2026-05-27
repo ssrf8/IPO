@@ -1,5 +1,7 @@
 import cors from "cors";
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { DashboardResponse, MarketQuote, Venue } from "../shared/types";
 import { fetchBinanceQuotes } from "./adapters/binance";
 import { fetchHyperliquidVenueQuotes } from "./adapters/hyperliquid";
@@ -7,6 +9,9 @@ import { fetchOkxQuotes } from "./adapters/okx";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8799);
+const host = process.env.HOST ?? "127.0.0.1";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distPath = path.resolve(__dirname, "..", "dist");
 
 app.use(cors());
 
@@ -56,6 +61,14 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, now: Date.now() });
 });
 
-app.listen(port, "127.0.0.1", () => {
-  console.log(`API server listening on http://127.0.0.1:${port}`);
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(distPath));
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/")) return next();
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
+
+app.listen(port, host, () => {
+  console.log(`Server listening on http://${host}:${port}`);
 });

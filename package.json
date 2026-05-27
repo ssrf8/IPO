@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "tsx watch server/index.ts",
-    "dev:client": "vite --host 127.0.0.1",
+    "dev:client": "vite --host 127.0.0.1 --port 8848",
     "build": "tsc -p tsconfig.json && vite build",
+    "start": "tsx server/index.ts",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -18,7 +19,8 @@
     "express": "^5.1.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tsx": "^4.22.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -27,7 +29,6 @@
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
     "concurrently": "^9.1.0",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vitest": "^2.1.8"

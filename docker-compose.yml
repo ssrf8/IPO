@@ -1,0 +1,11 @@
+services:
+  ipo-dashboard:
+    build: .
+    container_name: ipo-dashboard
+    restart: unless-stopped
+    ports:
+      - "8848:8848"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8848

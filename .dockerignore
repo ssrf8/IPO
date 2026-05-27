@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.vite
+coverage
+*.log
+dev-server.log
+dev-server.err.log
+npm-debug.log*
