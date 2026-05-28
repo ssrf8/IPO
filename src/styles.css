@@ -221,6 +221,96 @@ select {
   color: #724a00;
 }
 
+.chart-wrap {
+  padding: 0 16px 16px;
+}
+
+.chart-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.chart-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.chart-summary span {
+  color: #667789;
+  font-size: 12px;
+}
+
+.chart-summary strong {
+  color: #17212b;
+  font-size: 16px;
+}
+
+.chart-box {
+  width: 100%;
+  min-height: 260px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.chart-box svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.axis {
+  stroke: #9aa8b6;
+  stroke-width: 1;
+}
+
+.grid-line {
+  stroke: #e7edf2;
+  stroke-width: 1;
+}
+
+.chart-area {
+  fill: rgba(25, 118, 210, 0.12);
+}
+
+.chart-line {
+  fill: none;
+  stroke: #1976d2;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-point {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.chart-point.good {
+  fill: #147a43;
+}
+
+.chart-point.bad {
+  fill: #b42318;
+}
+
+.chart-label {
+  fill: #667789;
+  font-size: 12px;
+}
+
+.chart-empty {
+  padding: 110px 16px;
+}
+
 .table-wrap {
   width: 100%;
   overflow-x: auto;

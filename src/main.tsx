@@ -317,7 +317,15 @@ function Opportunities({ opportunities }: { opportunities: Opportunity[] }) {
 
 function HistoryPanel() {
   const history = useHistory();
-  const rows = useMemo(() => [...(history.data?.rows ?? [])].sort((a, b) => b.time - a.time).slice(0, 120), [history.data]);
+  const [target, setTarget] = useState<Target>("SPACEX");
+  const [series, setSeries] = useState<"maxMinSpread" | "okxBinance" | "okxVentuals" | "binanceVentuals" | "ventualsTradexyz">("maxMinSpread");
+  const filteredRows = useMemo(
+    () => [...(history.data?.rows ?? [])].filter((row) => row.target === target).sort((a, b) => a.time - b.time),
+    [history.data, target]
+  );
+  const rows = useMemo(() => [...filteredRows].reverse().slice(0, 80), [filteredRows]);
+  const chart = useMemo(() => buildSpreadSeries(filteredRows, series), [filteredRows, series]);
+  const summary = useMemo(() => summarizeSpreadSeries(chart.points), [chart.points]);
 
   return (
     <section className="panel">
@@ -327,6 +335,16 @@ function HistoryPanel() {
           <h2>历史价差</h2>
         </div>
         <div className="history-actions">
+          <select value={target} onChange={(e) => setTarget(e.target.value as Target)}>
+            {TARGETS.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <select value={series} onChange={(e) => setSeries(e.target.value as typeof series)}>
+            <option value="maxMinSpread">最大价差</option>
+            <option value="okxBinance">OKX - Binance</option>
+            <option value="okxVentuals">OKX - Ventuals</option>
+            <option value="binanceVentuals">Binance - Ventuals</option>
+            <option value="ventualsTradexyz">Ventuals - TradeXYZ</option>
+          </select>
           <select value={history.days} onChange={(e) => history.setDays(Number(e.target.value))}>
             <option value={2}>最近 2 天</option>
             <option value={7}>最近 7 天</option>
@@ -350,8 +368,9 @@ function HistoryPanel() {
         </div>
       )}
       <div className="meta table-meta">
-        最近更新：{history.data ? new Date(history.data.generatedAt).toLocaleString() : "-"} · 显示 {rows.length} 条 · 价差均为统一价格尺度
+        最近更新：{history.data ? new Date(history.data.generatedAt).toLocaleString() : "-"} · 图表 {chart.points.length} 个点 · 表格显示 {rows.length} 条 · 价差均为统一价格尺度
       </div>
+      <SpreadChart title={chart.label} points={chart.points} summary={summary} />
       <div className="table-wrap">
         <table>
           <thead>
@@ -394,6 +413,112 @@ function HistoryPanel() {
         </table>
       </div>
     </section>
+  );
+}
+
+function buildSpreadSeries(
+  rows: HistoricalSpreadsResponse["rows"],
+  series: "maxMinSpread" | "okxBinance" | "okxVentuals" | "binanceVentuals" | "ventualsTradexyz"
+) {
+  const labels = {
+    maxMinSpread: "最高-最低价差",
+    okxBinance: "OKX - Binance",
+    okxVentuals: "OKX - Ventuals",
+    binanceVentuals: "Binance - Ventuals",
+    ventualsTradexyz: "Ventuals - TradeXYZ"
+  };
+  const points = rows
+    .map((row) => {
+      const rawValue = series === "maxMinSpread" ? row.maxMinSpread : row.spreads[series];
+      return rawValue == null ? null : { time: row.time, value: Math.abs(rawValue) };
+    })
+    .filter((point): point is { time: number; value: number } => Boolean(point));
+  return { label: labels[series], points };
+}
+
+function summarizeSpreadSeries(points: Array<{ time: number; value: number }>) {
+  if (points.length === 0) {
+    return { latest: null, min: null, max: null, shrinkBars: 0, shrinkPct: null, latestChange: null };
+  }
+  const latest = points[points.length - 1].value;
+  const min = Math.min(...points.map((point) => point.value));
+  const max = Math.max(...points.map((point) => point.value));
+  let shrinkBars = 0;
+  for (let index = points.length - 1; index > 0; index -= 1) {
+    if (points[index].value < points[index - 1].value) shrinkBars += 1;
+    else break;
+  }
+  const beforeShrink = points[points.length - 1 - shrinkBars]?.value ?? latest;
+  const shrinkPct = beforeShrink === 0 ? null : (beforeShrink - latest) / beforeShrink * 100;
+  const previous = points[points.length - 2]?.value;
+  const latestChange = previous == null ? null : latest - previous;
+  return { latest, min, max, shrinkBars, shrinkPct, latestChange };
+}
+
+function SpreadChart({
+  title,
+  points,
+  summary
+}: {
+  title: string;
+  points: Array<{ time: number; value: number }>;
+  summary: ReturnType<typeof summarizeSpreadSeries>;
+}) {
+  const width = 920;
+  const height = 260;
+  const padding = { top: 22, right: 20, bottom: 36, left: 64 };
+  const values = points.map((point) => point.value);
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 1;
+  const span = max - min || 1;
+  const x = (index: number) => padding.left + (index / Math.max(1, points.length - 1)) * (width - padding.left - padding.right);
+  const y = (value: number) => padding.top + ((max - value) / span) * (height - padding.top - padding.bottom);
+  const line = points.map((point, index) => `${index === 0 ? "M" : "L"} ${x(index).toFixed(2)} ${y(point.value).toFixed(2)}`).join(" ");
+  const area = points.length
+    ? `${line} L ${x(points.length - 1).toFixed(2)} ${height - padding.bottom} L ${padding.left} ${height - padding.bottom} Z`
+    : "";
+  const latest = points[points.length - 1];
+  const previous = points[points.length - 2];
+  const isShrinking = previous ? latest.value < previous.value : false;
+
+  return (
+    <div className="chart-wrap">
+      <div className="chart-summary">
+        <div><span>当前价差</span><strong>{fmt(summary.latest)}</strong></div>
+        <div><span>最低</span><strong>{fmt(summary.min)}</strong></div>
+        <div><span>最高</span><strong>{fmt(summary.max)}</strong></div>
+        <div><span>连续收窄</span><strong>{summary.shrinkBars} 根</strong></div>
+        <div><span>本轮收窄</span><strong>{summary.shrinkPct == null ? "-" : `${fmt(summary.shrinkPct, 2)}%`}</strong></div>
+        <div><span>最近一根</span><strong className={isShrinking ? "positive" : "negative"}>{summary.latestChange == null ? "-" : fmt(summary.latestChange)}</strong></div>
+      </div>
+      <div className="chart-box">
+        {points.length === 0 ? (
+          <div className="empty chart-empty">暂无可画图的历史价差</div>
+        ) : (
+          <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title} 历史价差图`}>
+            <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} className="axis" />
+            <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} className="axis" />
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+              const value = max - span * ratio;
+              const yy = padding.top + ratio * (height - padding.top - padding.bottom);
+              return (
+                <g key={ratio}>
+                  <line x1={padding.left} y1={yy} x2={width - padding.right} y2={yy} className="grid-line" />
+                  <text x={padding.left - 10} y={yy + 4} textAnchor="end" className="chart-label">{fmt(value)}</text>
+                </g>
+              );
+            })}
+            <path d={area} className="chart-area" />
+            <path d={line} className="chart-line" />
+            {latest && (
+              <circle cx={x(points.length - 1)} cy={y(latest.value)} r="4" className={isShrinking ? "chart-point good" : "chart-point bad"} />
+            )}
+            <text x={padding.left} y={height - 10} className="chart-label">{new Date(points[0].time).toLocaleString()}</text>
+            <text x={width - padding.right} y={height - 10} textAnchor="end" className="chart-label">{new Date(points[points.length - 1].time).toLocaleString()}</text>
+          </svg>
+        )}
+      </div>
+    </div>
   );
 }
 
