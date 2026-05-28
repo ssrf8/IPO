@@ -40,3 +40,31 @@ docker run -d --name ipo-dashboard --restart unless-stopped -p 8848:8848 ipo-das
 - 容器 `PORT` 默认是 `8848`。
 - `HOST` 默认容器部署使用 `0.0.0.0`。
 - 本工具只读分析，不保存 API Key，不下单。
+
+## 导出历史价差
+
+默认导出最近 14 天、1 小时粒度的历史统一价和价差：
+
+```bash
+npm run history
+```
+
+输出文件：
+
+```text
+data/history-spreads.csv
+```
+
+可选参数：
+
+```bash
+DAYS=30 INTERVAL=1h OUT=data/spreads-30d.csv npm run history
+```
+
+Windows PowerShell：
+
+```powershell
+$env:DAYS="30"; $env:INTERVAL="1h"; $env:OUT="data/spreads-30d.csv"; npm run history
+```
+
+说明：OKX 单次最多拉取最近 300 根 K 线；如果用 `1h` 粒度，建议 `DAYS` 不超过 12。

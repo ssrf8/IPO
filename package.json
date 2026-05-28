@@ -9,6 +9,7 @@
     "dev:client": "vite --host 127.0.0.1 --port 8848",
     "build": "tsc -p tsconfig.json && vite build",
     "start": "tsx server/index.ts",
+    "history": "tsx scripts/export-history.ts",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "test:watch": "vitest"
