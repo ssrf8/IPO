@@ -4,7 +4,7 @@ import { AlertTriangle, Calculator, HelpCircle, RefreshCw, TrendingDown, Trendin
 import { calculateOpportunities, DEFAULT_PARAMS } from "../shared/calculations";
 import { canonicalPrice } from "../shared/calculations";
 import { TARGETS } from "../shared/markets.config";
-import type { CalculationParams, DashboardResponse, MarketQuote, Opportunity, Target, Venue } from "../shared/types";
+import type { CalculationParams, DashboardResponse, HistoricalSpreadsResponse, MarketQuote, Opportunity, Target, Venue } from "../shared/types";
 import "./styles.css";
 
 const VENUES: Venue[] = ["OKX", "Binance", "Ventuals", "TradeXYZ"];
@@ -68,6 +68,34 @@ function useQuotes() {
   }, []);
 
   return { data, loading, error, reload: load };
+}
+
+function useHistory() {
+  const [data, setData] = useState<HistoricalSpreadsResponse | null>(null);
+  const [days, setDays] = useState(2);
+  const [interval, setIntervalValue] = useState<"1h" | "4h" | "1d">("1h");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/history-spreads?days=${days}&interval=${interval}`);
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      setData(await response.json() as HistoricalSpreadsResponse);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "历史价差请求失败");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  return { data, days, setDays, interval, setIntervalValue, loading, error, reload: load };
 }
 
 function ParamPanel({ params, setParams }: { params: CalculationParams; setParams: (params: CalculationParams) => void }) {
@@ -287,6 +315,88 @@ function Opportunities({ opportunities }: { opportunities: Opportunity[] }) {
   );
 }
 
+function HistoryPanel() {
+  const history = useHistory();
+  const rows = useMemo(() => [...(history.data?.rows ?? [])].sort((a, b) => b.time - a.time).slice(0, 120), [history.data]);
+
+  return (
+    <section className="panel">
+      <div className="section-title action-title">
+        <div className="title-left">
+          <TrendingDown size={18} />
+          <h2>历史价差</h2>
+        </div>
+        <div className="history-actions">
+          <select value={history.days} onChange={(e) => history.setDays(Number(e.target.value))}>
+            <option value={2}>最近 2 天</option>
+            <option value={7}>最近 7 天</option>
+            <option value={12}>最近 12 天</option>
+          </select>
+          <select value={history.interval} onChange={(e) => history.setIntervalValue(e.target.value as "1h" | "4h" | "1d")}>
+            <option value="1h">1小时</option>
+            <option value="4h">4小时</option>
+            <option value="1d">1天</option>
+          </select>
+          <button onClick={() => void history.reload()} disabled={history.loading}>
+            <RefreshCw size={16} />
+            {history.loading ? "刷新中" : "刷新历史"}
+          </button>
+        </div>
+      </div>
+      {history.error && <div className="inline-error">{history.error}</div>}
+      {Boolean(history.data?.warnings.length) && (
+        <div className="inline-warn">
+          {history.data?.warnings.slice(0, 3).map((warning) => <div key={warning}>{warning}</div>)}
+        </div>
+      )}
+      <div className="meta table-meta">
+        最近更新：{history.data ? new Date(history.data.generatedAt).toLocaleString() : "-"} · 显示 {rows.length} 条 · 价差均为统一价格尺度
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>标的</th>
+              <th>OKX</th>
+              <th>Binance</th>
+              <th>Ventuals</th>
+              <th>TradeXYZ</th>
+              <th>最高 / 最低</th>
+              <th>最大价差</th>
+              <th>OKX-Binance</th>
+              <th>OKX-Ventuals</th>
+              <th>Binance-Ventuals</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={11} className="empty">暂无历史数据</td>
+              </tr>
+            )}
+            {rows.map((row) => (
+              <tr key={`${row.target}-${row.time}`}>
+                <td>{new Date(row.time).toLocaleString()}</td>
+                <td className="target">{row.target}</td>
+                <td>{fmt(row.prices.okx)}</td>
+                <td>{fmt(row.prices.binance)}</td>
+                <td>{fmt(row.prices.ventuals)}</td>
+                <td>{fmt(row.prices.tradexyz)}</td>
+                <td>{row.maxVenue ?? "-"} / {row.minVenue ?? "-"}</td>
+                <td>{fmt(row.maxMinSpread)}<br /><span>{bps(row.maxMinSpreadBps)}</span></td>
+                <td>{fmt(row.spreads.okxBinance)}</td>
+                <td>{fmt(row.spreads.okxVentuals)}</td>
+                <td>{fmt(row.spreads.binanceVentuals)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const { data, loading, error, reload } = useQuotes();
   const [params, setParams] = useState<CalculationParams>(DEFAULT_PARAMS);
@@ -322,6 +432,7 @@ function App() {
       </div>
       <MarketMatrix quotes={quotes} />
       <Opportunities opportunities={opportunities} />
+      <HistoryPanel />
 
       <section className="panel small-print">
         <div className="section-title">

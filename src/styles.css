@@ -179,6 +179,48 @@ select {
   letter-spacing: 0;
 }
 
+.action-title {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title-left,
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-actions select {
+  width: auto;
+  min-width: 96px;
+}
+
+.table-meta {
+  padding: 0 16px 12px;
+  margin: 0;
+}
+
+.inline-error,
+.inline-warn {
+  margin: 12px 16px;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.inline-error {
+  border: 1px solid #f0b8b2;
+  background: #fff1f0;
+  color: #b42318;
+}
+
+.inline-warn {
+  border: 1px solid #f0c36d;
+  background: #fff8e6;
+  color: #724a00;
+}
+
 .table-wrap {
   width: 100%;
   overflow-x: auto;
@@ -339,5 +381,11 @@ td span {
 
   .app-header h1 {
     font-size: 22px;
+  }
+
+  .action-title,
+  .history-actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

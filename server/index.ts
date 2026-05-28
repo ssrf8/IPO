@@ -6,6 +6,7 @@ import type { DashboardResponse, MarketQuote, Venue } from "../shared/types";
 import { fetchBinanceQuotes } from "./adapters/binance";
 import { fetchHyperliquidVenueQuotes } from "./adapters/hyperliquid";
 import { fetchOkxQuotes } from "./adapters/okx";
+import { collectHistoricalSpreads } from "./history";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8799);
@@ -59,6 +60,23 @@ app.get("/api/quotes", async (_req, res) => {
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, now: Date.now() });
+});
+
+app.get("/api/history-spreads", async (req, res) => {
+  try {
+    const days = Number(req.query.days ?? 2);
+    const interval = String(req.query.interval ?? "1h") as "1h" | "4h" | "1d";
+    res.json(await collectHistoricalSpreads({ days, interval }));
+  } catch (error) {
+    res.status(500).json({
+      generatedAt: Date.now(),
+      interval: String(req.query.interval ?? "1h"),
+      startTime: 0,
+      endTime: 0,
+      rows: [],
+      warnings: [error instanceof Error ? error.message : String(error)]
+    });
+  }
 });
 
 if (process.env.NODE_ENV === "production") {

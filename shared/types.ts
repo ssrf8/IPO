@@ -67,6 +67,38 @@ export interface DashboardResponse {
   }>;
 }
 
+export interface HistoricalSpreadRow {
+  time: number;
+  target: Target;
+  prices: {
+    okx?: number | null;
+    binance?: number | null;
+    ventuals?: number | null;
+    tradexyz?: number | null;
+  };
+  maxVenue: string | null;
+  minVenue: string | null;
+  maxMinSpread: number | null;
+  maxMinSpreadBps: number | null;
+  spreads: {
+    okxBinance: number | null;
+    okxVentuals: number | null;
+    okxTradexyz: number | null;
+    binanceVentuals: number | null;
+    binanceTradexyz: number | null;
+    ventualsTradexyz: number | null;
+  };
+}
+
+export interface HistoricalSpreadsResponse {
+  generatedAt: number;
+  interval: string;
+  startTime: number;
+  endTime: number;
+  rows: HistoricalSpreadRow[];
+  warnings: string[];
+}
+
 export interface CalculationParams {
   notionalUsd: number;
   holdingHours: number;
