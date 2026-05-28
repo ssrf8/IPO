@@ -86,6 +86,15 @@ describe("calculateOpportunities", () => {
     expect(opportunities[0].breakEvenSpread).toBeLessThan(310.7);
   });
 
+  it("uses executable entry prices for the default convergence reference", () => {
+    const opportunities = calculateOpportunities([
+      quote({ venue: "OKX", target: "ANTHROPIC", symbol: "ANTHROPIC-USDT-SWAP", bid: 1717.5, ask: 1725, mid: 1721.25 }),
+      quote({ venue: "Ventuals", target: "ANTHROPIC", symbol: "vntl:ANTHROPIC", bid: 1400, ask: 1406.8, mid: 1403.4, settleAsset: "USDH" })
+    ], { ...DEFAULT_PARAMS, notionalUsd: 500, manualSlippageBps: 10 });
+
+    expect(opportunities[0].expectedClose).toBeCloseTo((1717.5 + 1406.8) / 2);
+  });
+
   it("falls back to manual slippage when requested orderbook depth is insufficient", () => {
     const opportunities = calculateOpportunities([
       quote({ venue: "OKX", bid: 110, ask: 111, mid: 110.5, orderBook: { bids: [{ price: 110, size: 1 }], asks: [{ price: 111, size: 1 }] } }),

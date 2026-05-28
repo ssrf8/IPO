@@ -226,11 +226,11 @@ function CostBreakdown({ opportunity }: { opportunity: Opportunity }) {
       <div className="scenario">
         <div>
           <strong>默认收敛</strong>
-          <span>空头从 {fmt(opportunity.shortEntry)} 跌到 {fmt(opportunity.expectedClose)}，多头从 {fmt(opportunity.longEntry)} 涨到 {fmt(opportunity.expectedClose)}</span>
+          <span>按可执行开仓价中点估算：空头从 {fmt(opportunity.shortEntry)} 跌到 {fmt(opportunity.expectedClose)}，多头从 {fmt(opportunity.longEntry)} 涨到 {fmt(opportunity.expectedClose)}。这只是统一参考价，实际看剩余价差。</span>
         </div>
         <div>
           <strong>盈亏红线</strong>
-          <span>剩余价差大于 {fmt(opportunity.breakEvenSpread)} 时会转亏；成本缓冲为 {fmt(opportunity.costSpread)}。等价为多头到 {fmt(opportunity.expectedClose)} 时，空头不能高于 {fmt(opportunity.breakEvenShortPriceAtLongClose)}</span>
+          <span>{opportunity.shortVenue} - {opportunity.longVenue} 剩余价差大于 {fmt(opportunity.breakEvenSpread)} 时会转亏；成本缓冲为 {fmt(opportunity.costSpread)}。若多头价在 {fmt(opportunity.expectedClose)}，空头红线为 {fmt(opportunity.breakEvenShortPriceAtLongClose)}。</span>
         </div>
         <div>
           <strong>最大收益参考</strong>
@@ -359,12 +359,12 @@ function formatOpportunityForClipboard(opportunity: Opportunity, params: Calcula
     `手动滑点：${params.manualSlippageBps} bps`,
     "",
     `当前可执行价差：${fmt(opportunity.executableSpread)} (${bps(opportunity.executableSpreadBps)})`,
-    `默认止盈/收敛目标：空头跌到 ${fmt(opportunity.expectedClose)}，多头涨到 ${fmt(opportunity.expectedClose)}（仅为参考，不是必要条件）`,
+    `默认止盈/收敛参考价：${fmt(opportunity.expectedClose)}（按可执行开仓价中点估算，仅为统一参考价，不是必要条件）`,
     `成本折算价差：${fmt(opportunity.costSpread)} (${bps(opportunity.costSpreadBps)})`,
     `盈亏红线：平仓时 ${opportunity.shortVenue} - ${opportunity.longVenue} 剩余价差低于 ${fmt(opportunity.breakEvenSpread)} (${bps(opportunity.breakEvenSpreadBps)}) 才盈利`,
-    `红线价格参考：若多头到 ${fmt(opportunity.expectedClose)}，空头高于 ${fmt(opportunity.breakEvenShortPriceAtLongClose)} 后转亏`,
-    `红线价格参考：若空头到 ${fmt(opportunity.expectedClose)}，多头低于 ${fmt(opportunity.breakEvenLongPriceAtShortClose)} 后转亏`,
-    `止损参考：剩余价差高于 ${fmt(opportunity.breakEvenSpread)} 后，按当前成本模型转为亏损`,
+    `红线价格参考：若${opportunity.longVenue} 多头价为 ${fmt(opportunity.expectedClose)}，${opportunity.shortVenue} 空头价高于 ${fmt(opportunity.breakEvenShortPriceAtLongClose)} 后转亏`,
+    `红线价格参考：若${opportunity.shortVenue} 空头价为 ${fmt(opportunity.expectedClose)}，${opportunity.longVenue} 多头价低于 ${fmt(opportunity.breakEvenLongPriceAtShortClose)} 后转亏`,
+    `风险观察线：这不是止损单；若平仓时剩余价差仍高于 ${fmt(opportunity.breakEvenSpread)}，按当前成本模型会亏损`,
     `最大收益参考：价差收敛到 ${fmt(opportunity.maxProfitSpread)} 时，约 ${fmt(opportunity.maxProfitPnl)} USD`,
     "",
     `开仓手续费：${fmt(opportunity.costBreakdown.openFees)} USD`,

@@ -110,7 +110,7 @@ export function calculateOpportunities(quotes: MarketQuote[], params: Calculatio
 
         const expectedClose = params.closingPrice && params.closingPrice > 0
           ? params.closingPrice
-          : (high.price + low.price) / 2;
+          : (shortEntry + longEntry) / 2;
         const quantity = params.notionalUsd / (shortEntry + longEntry);
         const longNotional = quantity * longEntry;
         const shortNotional = quantity * shortEntry;
