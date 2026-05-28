@@ -401,6 +401,12 @@ th {
   cursor: pointer;
 }
 
+.copy-button {
+  height: 32px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
 .clickable:hover {
   background: #f7fbff;
 }

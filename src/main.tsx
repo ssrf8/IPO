@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AlertTriangle, Calculator, HelpCircle, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, Calculator, Check, Copy, HelpCircle, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import { calculateOpportunities, DEFAULT_PARAMS } from "../shared/calculations";
 import { canonicalPrice } from "../shared/calculations";
 import { TARGETS } from "../shared/markets.config";
@@ -250,8 +250,22 @@ function CostBreakdown({ opportunity }: { opportunity: Opportunity }) {
   );
 }
 
-function Opportunities({ opportunities }: { opportunities: Opportunity[] }) {
+function Opportunities({ opportunities, params }: { opportunities: Opportunity[]; params: CalculationParams }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  async function copyOpportunity(opportunity: Opportunity, event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    const text = formatOpportunityForClipboard(opportunity, params);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(opportunity.id);
+      window.setTimeout(() => setCopiedId((current) => (current === opportunity.id ? null : current)), 1800);
+    } catch {
+      window.prompt("复制失败，可以手动复制以下内容", text);
+    }
+  }
+
   return (
     <section className="panel">
       <div className="section-title">
@@ -270,12 +284,13 @@ function Opportunities({ opportunities }: { opportunities: Opportunity[] }) {
               <th>总成本</th>
               <th>预计净收益</th>
               <th>状态</th>
+              <th>复制</th>
             </tr>
           </thead>
           <tbody>
             {opportunities.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty">暂无可比较机会</td>
+                <td colSpan={9} className="empty">暂无可比较机会</td>
               </tr>
             )}
             {opportunities.map((opportunity) => (
@@ -298,10 +313,16 @@ function Opportunities({ opportunities }: { opportunities: Opportunity[] }) {
                     {opportunity.profitable ? "高于红线" : "低于红线"}<br />
                     <span>剩余价差低于红线才盈利</span>
                   </td>
+                  <td>
+                    <button className="copy-button" type="button" onClick={(event) => void copyOpportunity(opportunity, event)}>
+                      {copiedId === opportunity.id ? <Check size={15} /> : <Copy size={15} />}
+                      {copiedId === opportunity.id ? "已复制" : "复制"}
+                    </button>
+                  </td>
                 </tr>
                 {openId === opportunity.id && (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <CostBreakdown opportunity={opportunity} />
                     </td>
                   </tr>
@@ -313,6 +334,52 @@ function Opportunities({ opportunities }: { opportunities: Opportunity[] }) {
       </div>
     </section>
   );
+}
+
+function formatOpportunityForClipboard(opportunity: Opportunity, params: CalculationParams) {
+  const totalNotional = params.notionalUsd * 2;
+  const hedgeQuantity = params.notionalUsd / ((opportunity.shortEntry + opportunity.longEntry) / 2);
+  return [
+    `【盘前合约对冲方案】${opportunity.target}`,
+    "",
+    `方向：低价做多，高价做空`,
+    `做多交易所：${opportunity.longVenue}`,
+    `做多合约：${opportunity.longSymbol}`,
+    `做多开仓价：${fmt(opportunity.longEntry)}`,
+    `做空交易所：${opportunity.shortVenue}`,
+    `做空合约：${opportunity.shortSymbol}`,
+    `做空开仓价：${fmt(opportunity.shortEntry)}`,
+    "",
+    `单边名义本金：${fmt(params.notionalUsd)} USD`,
+    `双边合计名义：${fmt(totalNotional)} USD`,
+    `估算对冲数量：${fmt(hedgeQuantity, 6)} 统一价格单位`,
+    `预计持仓时间：${params.holdingHours} 小时`,
+    `开仓费率模式：${params.feeModeOpen}`,
+    `平仓费率模式：${params.feeModeClose}`,
+    `滑点模式：${params.slippageMode}`,
+    `手动滑点：${params.manualSlippageBps} bps`,
+    "",
+    `当前可执行价差：${fmt(opportunity.executableSpread)} (${bps(opportunity.executableSpreadBps)})`,
+    `默认止盈/收敛目标：空头跌到 ${fmt(opportunity.expectedClose)}，多头涨到 ${fmt(opportunity.expectedClose)}`,
+    `盈亏红线：剩余价差 ${fmt(opportunity.breakEvenSpread)} (${bps(opportunity.breakEvenSpreadBps)})`,
+    `红线价格参考：若多头到 ${fmt(opportunity.expectedClose)}，空头高于 ${fmt(opportunity.breakEvenShortPriceAtLongClose)} 后转亏`,
+    `红线价格参考：若空头到 ${fmt(opportunity.expectedClose)}，多头低于 ${fmt(opportunity.breakEvenLongPriceAtShortClose)} 后转亏`,
+    `止损参考：剩余价差高于 ${fmt(opportunity.breakEvenSpread)} 后，按当前成本模型转为亏损`,
+    `最大收益参考：价差收敛到 ${fmt(opportunity.maxProfitSpread)} 时，约 ${fmt(opportunity.maxProfitPnl)} USD`,
+    "",
+    `开仓手续费：${fmt(opportunity.costBreakdown.openFees)} USD`,
+    `平仓手续费：${fmt(opportunity.costBreakdown.closeFees)} USD`,
+    `开仓滑点：${fmt(opportunity.costBreakdown.openSlippage)} USD`,
+    `平仓滑点：${fmt(opportunity.costBreakdown.closeSlippage)} USD`,
+    `资金费：${fmt(opportunity.costBreakdown.funding)} USD`,
+    `稳定币折价成本：${fmt(opportunity.costBreakdown.stablecoinHaircut)} USD`,
+    `总成本：${fmt(opportunity.totalCost)} USD`,
+    "",
+    `预计毛收益：${fmt(opportunity.grossPnl)} USD`,
+    `预计净收益：${fmt(opportunity.netPnl)} USD (${bps(opportunity.netReturnBps)})`,
+    `状态：${opportunity.profitable ? "高于红线，当前模型为正收益" : "低于红线，当前模型为负收益或边际不足"}`,
+    opportunity.notes.length ? `备注：${opportunity.notes.join("；")}` : ""
+  ].filter(Boolean).join("\n");
 }
 
 function HistoryPanel() {
@@ -600,7 +667,7 @@ function App() {
         最近更新：{data ? new Date(data.generatedAt).toLocaleString() : "-"} · 可比较机会 {opportunities.length} 个
       </div>
       <MarketMatrix quotes={quotes} />
-      <Opportunities opportunities={opportunities} />
+      <Opportunities opportunities={opportunities} params={params} />
       <HistoryPanel />
 
       <section className="panel small-print">
