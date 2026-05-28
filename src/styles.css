@@ -302,6 +302,32 @@ select {
   fill: #b42318;
 }
 
+.chart-point.hover {
+  fill: #1976d2;
+}
+
+.hover-line {
+  stroke: #526273;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.chart-tooltip {
+  fill: #ffffff;
+  stroke: #bfccd8;
+  stroke-width: 1;
+  filter: drop-shadow(0 8px 16px rgba(23, 33, 43, 0.18));
+}
+
+.tooltip-text {
+  fill: #263747;
+  font-size: 12px;
+}
+
+.tooltip-text.strong {
+  font-weight: 700;
+}
+
 .chart-label {
   fill: #667789;
   font-size: 12px;

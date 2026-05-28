@@ -93,7 +93,7 @@ function useHistory() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [days, interval]);
 
   return { data, days, setDays, interval, setIntervalValue, loading, error, reload: load };
 }
@@ -430,9 +430,9 @@ function buildSpreadSeries(
   const points = rows
     .map((row) => {
       const rawValue = series === "maxMinSpread" ? row.maxMinSpread : row.spreads[series];
-      return rawValue == null ? null : { time: row.time, value: Math.abs(rawValue) };
+      return rawValue == null ? null : { time: row.time, value: Math.abs(rawValue), row };
     })
-    .filter((point): point is { time: number; value: number } => Boolean(point));
+    .filter((point): point is { time: number; value: number; row: HistoricalSpreadsResponse["rows"][number] } => Boolean(point));
   return { label: labels[series], points };
 }
 
@@ -461,9 +461,10 @@ function SpreadChart({
   summary
 }: {
   title: string;
-  points: Array<{ time: number; value: number }>;
+  points: Array<{ time: number; value: number; row: HistoricalSpreadsResponse["rows"][number] }>;
   summary: ReturnType<typeof summarizeSpreadSeries>;
 }) {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const width = 920;
   const height = 260;
   const padding = { top: 22, right: 20, bottom: 36, left: 64 };
@@ -480,6 +481,24 @@ function SpreadChart({
   const latest = points[points.length - 1];
   const previous = points[points.length - 2];
   const isShrinking = previous ? latest.value < previous.value : false;
+  const hoverPoint = hoverIndex == null ? null : points[hoverIndex];
+  const safeHoverIndex = hoverIndex ?? 0;
+  const tooltipWidth = 190;
+  const tooltipHeight = 118;
+  const tooltipX = hoverPoint ? Math.min(width - padding.right - tooltipWidth, Math.max(padding.left, x(safeHoverIndex) + 12)) : 0;
+  const tooltipY = hoverPoint ? Math.max(padding.top, y(hoverPoint.value) - tooltipHeight - 10) : 0;
+  const timeTicks = points.length
+    ? [0, 0.25, 0.5, 0.75, 1].map((ratio) => Math.round(ratio * (points.length - 1)))
+    : [];
+
+  function handleChartHover(event: React.MouseEvent<SVGSVGElement>) {
+    if (points.length === 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const relativeX = (event.clientX - rect.left) / rect.width * width;
+    const plotWidth = width - padding.left - padding.right;
+    const ratio = Math.min(1, Math.max(0, (relativeX - padding.left) / plotWidth));
+    setHoverIndex(Math.round(ratio * (points.length - 1)));
+  }
 
   return (
     <div className="chart-wrap">
@@ -495,7 +514,13 @@ function SpreadChart({
         {points.length === 0 ? (
           <div className="empty chart-empty">暂无可画图的历史价差</div>
         ) : (
-          <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title} 历史价差图`}>
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label={`${title} 历史价差图`}
+            onMouseMove={handleChartHover}
+            onMouseLeave={() => setHoverIndex(null)}
+          >
             <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} className="axis" />
             <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} className="axis" />
             {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -510,11 +535,30 @@ function SpreadChart({
             })}
             <path d={area} className="chart-area" />
             <path d={line} className="chart-line" />
+            {timeTicks.map((index) => (
+              <g key={index}>
+                <line x1={x(index)} y1={height - padding.bottom} x2={x(index)} y2={height - padding.bottom + 5} className="axis" />
+                <text x={x(index)} y={height - 10} textAnchor={index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"} className="chart-label">
+                  {new Date(points[index].time).toLocaleString([], { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                </text>
+              </g>
+            ))}
             {latest && (
               <circle cx={x(points.length - 1)} cy={y(latest.value)} r="4" className={isShrinking ? "chart-point good" : "chart-point bad"} />
             )}
-            <text x={padding.left} y={height - 10} className="chart-label">{new Date(points[0].time).toLocaleString()}</text>
-            <text x={width - padding.right} y={height - 10} textAnchor="end" className="chart-label">{new Date(points[points.length - 1].time).toLocaleString()}</text>
+            {hoverPoint && (
+              <g>
+                <line x1={x(safeHoverIndex)} y1={padding.top} x2={x(safeHoverIndex)} y2={height - padding.bottom} className="hover-line" />
+                <circle cx={x(safeHoverIndex)} cy={y(hoverPoint.value)} r="5" className="chart-point hover" />
+                <rect x={tooltipX} y={tooltipY} width={tooltipWidth} height={tooltipHeight} rx="6" className="chart-tooltip" />
+                <text x={tooltipX + 10} y={tooltipY + 18} className="tooltip-text strong">{new Date(hoverPoint.time).toLocaleString()}</text>
+                <text x={tooltipX + 10} y={tooltipY + 38} className="tooltip-text">价差: {fmt(hoverPoint.value)}</text>
+                <text x={tooltipX + 10} y={tooltipY + 58} className="tooltip-text">OKX: {fmt(hoverPoint.row.prices.okx)}</text>
+                <text x={tooltipX + 10} y={tooltipY + 76} className="tooltip-text">Binance: {fmt(hoverPoint.row.prices.binance)}</text>
+                <text x={tooltipX + 10} y={tooltipY + 94} className="tooltip-text">Ventuals: {fmt(hoverPoint.row.prices.ventuals)}</text>
+                <text x={tooltipX + 10} y={tooltipY + 112} className="tooltip-text">TradeXYZ: {fmt(hoverPoint.row.prices.tradexyz)}</text>
+              </g>
+            )}
           </svg>
         )}
       </div>
