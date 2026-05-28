@@ -127,6 +127,10 @@ export function calculateOpportunities(quotes: MarketQuote[], params: Calculatio
         const executableSpreadBps = executableSpread / longEntry * 10_000;
         const breakEvenSpread = totalCost / quantity;
         const breakEvenSpreadBps = breakEvenSpread / longEntry * 10_000;
+        const breakEvenShortPriceAtLongClose = expectedClose + breakEvenSpread;
+        const breakEvenLongPriceAtShortClose = expectedClose - breakEvenSpread;
+        const maxProfitSpread = 0;
+        const maxProfitPnl = executableSpread * quantity - totalCost;
         const notes = [
           shortOpenSlippage.note,
           longOpenSlippage.note,
@@ -152,6 +156,10 @@ export function calculateOpportunities(quotes: MarketQuote[], params: Calculatio
           netReturnBps: netPnl / params.notionalUsd * 10_000,
           breakEvenSpread,
           breakEvenSpreadBps,
+          breakEvenShortPriceAtLongClose,
+          breakEvenLongPriceAtShortClose,
+          maxProfitSpread,
+          maxProfitPnl,
           profitable: netPnl > 0 && executableSpread >= breakEvenSpread,
           costBreakdown: {
             openFees,

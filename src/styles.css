@@ -252,6 +252,35 @@ td span {
   font-weight: 400;
 }
 
+.detail-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.scenario {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.scenario div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.scenario strong {
+  color: #17212b;
+}
+
+.scenario span {
+  color: #526273;
+}
+
 .breakdown {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

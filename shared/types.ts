@@ -96,6 +96,10 @@ export interface Opportunity {
   netReturnBps: number;
   breakEvenSpread: number;
   breakEvenSpreadBps: number;
+  breakEvenShortPriceAtLongClose: number;
+  breakEvenLongPriceAtShortClose: number;
+  maxProfitSpread: number;
+  maxProfitPnl: number;
   profitable: boolean;
   costBreakdown: {
     openFees: number;

@@ -67,6 +67,8 @@ describe("calculateOpportunities", () => {
     const lowCost = calculateOpportunities(quotes, { ...DEFAULT_PARAMS, manualSlippageBps: 1 })[0];
     const highCost = calculateOpportunities(quotes, { ...DEFAULT_PARAMS, manualSlippageBps: 50 })[0];
     expect(highCost.breakEvenSpread).toBeGreaterThan(lowCost.breakEvenSpread);
+    expect(highCost.breakEvenShortPriceAtLongClose).toBeGreaterThan(highCost.expectedClose);
+    expect(highCost.breakEvenLongPriceAtShortClose).toBeLessThan(highCost.expectedClose);
   });
 
   it("falls back to manual slippage when requested orderbook depth is insufficient", () => {

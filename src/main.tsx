@@ -194,14 +194,30 @@ function MarketMatrix({ quotes }: { quotes: MarketQuote[] }) {
 
 function CostBreakdown({ opportunity }: { opportunity: Opportunity }) {
   return (
-    <div className="breakdown">
-      <span>开仓手续费: ${fmt(opportunity.costBreakdown.openFees)}</span>
-      <span>平仓手续费: ${fmt(opportunity.costBreakdown.closeFees)}</span>
-      <span>开仓滑点: ${fmt(opportunity.costBreakdown.openSlippage)}</span>
-      <span>平仓滑点: ${fmt(opportunity.costBreakdown.closeSlippage)}</span>
-      <span>资金费: ${fmt(opportunity.costBreakdown.funding)}</span>
-      <span>稳定币折价: ${fmt(opportunity.costBreakdown.stablecoinHaircut)}</span>
-      {opportunity.notes.map((note) => <span key={note} className="note">{note}</span>)}
+    <div className="detail-stack">
+      <div className="scenario">
+        <div>
+          <strong>默认收敛</strong>
+          <span>空头从 {fmt(opportunity.shortEntry)} 跌到 {fmt(opportunity.expectedClose)}，多头从 {fmt(opportunity.longEntry)} 涨到 {fmt(opportunity.expectedClose)}</span>
+        </div>
+        <div>
+          <strong>盈亏红线</strong>
+          <span>剩余价差大于 {fmt(opportunity.breakEvenSpread)} 时会转亏；等价为多头收敛到 {fmt(opportunity.expectedClose)} 时，空头不能高于 {fmt(opportunity.breakEvenShortPriceAtLongClose)}</span>
+        </div>
+        <div>
+          <strong>最大收益参考</strong>
+          <span>在当前简化模型里，价差收敛到 {fmt(opportunity.maxProfitSpread)} 时收益最高，约 ${fmt(opportunity.maxProfitPnl)}</span>
+        </div>
+      </div>
+      <div className="breakdown">
+        <span>开仓手续费: ${fmt(opportunity.costBreakdown.openFees)}</span>
+        <span>平仓手续费: ${fmt(opportunity.costBreakdown.closeFees)}</span>
+        <span>开仓滑点: ${fmt(opportunity.costBreakdown.openSlippage)}</span>
+        <span>平仓滑点: ${fmt(opportunity.costBreakdown.closeSlippage)}</span>
+        <span>资金费: ${fmt(opportunity.costBreakdown.funding)}</span>
+        <span>稳定币折价: ${fmt(opportunity.costBreakdown.stablecoinHaircut)}</span>
+        {opportunity.notes.map((note) => <span key={note} className="note">{note}</span>)}
+      </div>
     </div>
   );
 }
@@ -221,8 +237,8 @@ function Opportunities({ opportunities }: { opportunities: Opportunity[] }) {
               <th>标的</th>
               <th>做多</th>
               <th>做空</th>
-              <th>可执行价差</th>
-              <th>红线价差</th>
+              <th>收敛目标</th>
+              <th>价差 / 红线</th>
               <th>总成本</th>
               <th>预计净收益</th>
               <th>状态</th>
@@ -240,11 +256,20 @@ function Opportunities({ opportunities }: { opportunities: Opportunity[] }) {
                   <td className="target">{opportunity.target}</td>
                   <td>{opportunity.longVenue}<br /><span>{opportunity.longSymbol} @ {fmt(opportunity.longEntry)}</span></td>
                   <td>{opportunity.shortVenue}<br /><span>{opportunity.shortSymbol} @ {fmt(opportunity.shortEntry)}</span></td>
-                  <td>{fmt(opportunity.executableSpread)}<br /><span>{bps(opportunity.executableSpreadBps)}</span></td>
-                  <td className={opportunity.profitable ? "" : "danger"}>{fmt(opportunity.breakEvenSpread)}<br /><span>{bps(opportunity.breakEvenSpreadBps)}</span></td>
+                  <td>
+                    空跌到 {fmt(opportunity.expectedClose)}<br />
+                    <span>多涨到 {fmt(opportunity.expectedClose)}</span>
+                  </td>
+                  <td className={opportunity.profitable ? "" : "danger"}>
+                    当前 {fmt(opportunity.executableSpread)}<br />
+                    <span>红线 {fmt(opportunity.breakEvenSpread)} · {bps(opportunity.breakEvenSpreadBps)}</span>
+                  </td>
                   <td>${fmt(opportunity.totalCost)}</td>
                   <td className={opportunity.netPnl >= 0 ? "positive" : "negative"}>${fmt(opportunity.netPnl)}<br /><span>{bps(opportunity.netReturnBps)}</span></td>
-                  <td>{opportunity.profitable ? "高于红线" : "低于红线"}</td>
+                  <td>
+                    {opportunity.profitable ? "高于红线" : "低于红线"}<br />
+                    <span>剩余价差低于红线才盈利</span>
+                  </td>
                 </tr>
                 {openId === opportunity.id && (
                   <tr>
