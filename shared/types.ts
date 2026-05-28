@@ -120,12 +120,18 @@ export interface Opportunity {
   longEntry: number;
   shortEntry: number;
   expectedClose: number;
+  hedgeQuantity: number;
+  longNotional: number;
+  shortNotional: number;
+  totalNotional: number;
   executableSpread: number;
   executableSpreadBps: number;
   grossPnl: number;
   totalCost: number;
   netPnl: number;
   netReturnBps: number;
+  costSpread: number;
+  costSpreadBps: number;
   breakEvenSpread: number;
   breakEvenSpreadBps: number;
   breakEvenShortPriceAtLongClose: number;

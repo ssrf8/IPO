@@ -119,18 +119,18 @@ function ParamPanel({ params, setParams }: { params: CalculationParams; setParam
             <strong>使用说明</strong>
             <p>工具会把同一标的不同交易所的价格先换成统一比较尺度，再枚举“低价做多、高价做空”的组合。</p>
             <p>SPACEX 目前有两种尺度：OKX/Ventuals 是估值除以 10 亿；Binance/TradeXYZ 的 SPCX 是份额价，先乘配置里的换算倍数后再比较。</p>
-            <p>名义本金用于计算双腿手续费、资金费、滑点和预计盈亏，不代表真实下单金额。本工具只读分析，不会下单。</p>
+            <p>总本金会按同一对冲数量拆成多头本金和空头本金；价格高的一腿名义金额会更大，价格低的一腿名义金额会更小。</p>
             <p>交易手续费按配置里的 maker/taker 费率计算，开仓和平仓都会算；真实账户 VIP、返佣、平台币抵扣不会自动读取。</p>
-            <p>资金费：Binance 会动态读取最新 funding 并小时化；OKX 有公开 funding 时读取，否则按配置 fallback；Ventuals/TradeXYZ 缺失时按 0 处理。</p>
+            <p>资金费：Binance、OKX、Ventuals、TradeXYZ 都会优先读取公开接口的最新 funding 并小时化；缺失时才按配置 fallback 或 0 处理。</p>
             <p>滑点可用手动 bps，也可用订单簿 VWAP。订单簿深度不足时会回退到手动滑点，并在详情里提示。</p>
-            <p>红线价差 = 总成本 / 对冲数量。当前可执行价差低于红线时，机会会标为低于红线。</p>
+            <p>成本缓冲 = 总成本 / 对冲数量；盈亏平衡剩余价差 = 当前可执行价差 - 成本缓冲。平仓时剩余价差低于这个红线才是正收益。</p>
             <p>稳定币 haircut 用于给 USDT/USDC/USDH 的结算差异加成本，默认全部按 1:1 USD。</p>
           </div>
         </div>
       </div>
       <div className="toolbar">
         <label>
-          名义本金
+          总本金
           <input type="number" min="100" step="100" value={params.notionalUsd} onChange={(e) => patch({ notionalUsd: Number(e.target.value) })} />
         </label>
         <label>
@@ -230,7 +230,7 @@ function CostBreakdown({ opportunity }: { opportunity: Opportunity }) {
         </div>
         <div>
           <strong>盈亏红线</strong>
-          <span>剩余价差大于 {fmt(opportunity.breakEvenSpread)} 时会转亏；等价为多头收敛到 {fmt(opportunity.expectedClose)} 时，空头不能高于 {fmt(opportunity.breakEvenShortPriceAtLongClose)}</span>
+          <span>剩余价差大于 {fmt(opportunity.breakEvenSpread)} 时会转亏；成本缓冲为 {fmt(opportunity.costSpread)}。等价为多头到 {fmt(opportunity.expectedClose)} 时，空头不能高于 {fmt(opportunity.breakEvenShortPriceAtLongClose)}</span>
         </div>
         <div>
           <strong>最大收益参考</strong>
@@ -305,12 +305,12 @@ function Opportunities({ opportunities, params }: { opportunities: Opportunity[]
                   </td>
                   <td className={opportunity.profitable ? "" : "danger"}>
                     当前 {fmt(opportunity.executableSpread)}<br />
-                    <span>红线 {fmt(opportunity.breakEvenSpread)} · {bps(opportunity.breakEvenSpreadBps)}</span>
+                    <span>剩余红线 {fmt(opportunity.breakEvenSpread)} · {bps(opportunity.breakEvenSpreadBps)}</span>
                   </td>
                   <td>${fmt(opportunity.totalCost)}</td>
                   <td className={opportunity.netPnl >= 0 ? "positive" : "negative"}>${fmt(opportunity.netPnl)}<br /><span>{bps(opportunity.netReturnBps)}</span></td>
                   <td>
-                    {opportunity.profitable ? "高于红线" : "低于红线"}<br />
+                    {opportunity.profitable ? "默认收敛为正" : "默认收敛不足"}<br />
                     <span>剩余价差低于红线才盈利</span>
                   </td>
                   <td>
@@ -337,8 +337,6 @@ function Opportunities({ opportunities, params }: { opportunities: Opportunity[]
 }
 
 function formatOpportunityForClipboard(opportunity: Opportunity, params: CalculationParams) {
-  const totalNotional = params.notionalUsd * 2;
-  const hedgeQuantity = params.notionalUsd / ((opportunity.shortEntry + opportunity.longEntry) / 2);
   return [
     `【盘前合约对冲方案】${opportunity.target}`,
     "",
@@ -350,9 +348,10 @@ function formatOpportunityForClipboard(opportunity: Opportunity, params: Calcula
     `做空合约：${opportunity.shortSymbol}`,
     `做空开仓价：${fmt(opportunity.shortEntry)}`,
     "",
-    `单边名义本金：${fmt(params.notionalUsd)} USD`,
-    `双边合计名义：${fmt(totalNotional)} USD`,
-    `估算对冲数量：${fmt(hedgeQuantity, 6)} 统一价格单位`,
+    `总投入名义本金：${fmt(opportunity.totalNotional)} USD`,
+    `做多名义本金：${fmt(opportunity.longNotional)} USD`,
+    `做空名义本金：${fmt(opportunity.shortNotional)} USD`,
+    `估算对冲数量：${fmt(opportunity.hedgeQuantity, 6)} 统一价格单位`,
     `预计持仓时间：${params.holdingHours} 小时`,
     `开仓费率模式：${params.feeModeOpen}`,
     `平仓费率模式：${params.feeModeClose}`,
@@ -360,8 +359,9 @@ function formatOpportunityForClipboard(opportunity: Opportunity, params: Calcula
     `手动滑点：${params.manualSlippageBps} bps`,
     "",
     `当前可执行价差：${fmt(opportunity.executableSpread)} (${bps(opportunity.executableSpreadBps)})`,
-    `默认止盈/收敛目标：空头跌到 ${fmt(opportunity.expectedClose)}，多头涨到 ${fmt(opportunity.expectedClose)}`,
-    `盈亏红线：剩余价差 ${fmt(opportunity.breakEvenSpread)} (${bps(opportunity.breakEvenSpreadBps)})`,
+    `默认止盈/收敛目标：空头跌到 ${fmt(opportunity.expectedClose)}，多头涨到 ${fmt(opportunity.expectedClose)}（仅为参考，不是必要条件）`,
+    `成本折算价差：${fmt(opportunity.costSpread)} (${bps(opportunity.costSpreadBps)})`,
+    `盈亏红线：平仓时 ${opportunity.shortVenue} - ${opportunity.longVenue} 剩余价差低于 ${fmt(opportunity.breakEvenSpread)} (${bps(opportunity.breakEvenSpreadBps)}) 才盈利`,
     `红线价格参考：若多头到 ${fmt(opportunity.expectedClose)}，空头高于 ${fmt(opportunity.breakEvenShortPriceAtLongClose)} 后转亏`,
     `红线价格参考：若空头到 ${fmt(opportunity.expectedClose)}，多头低于 ${fmt(opportunity.breakEvenLongPriceAtShortClose)} 后转亏`,
     `止损参考：剩余价差高于 ${fmt(opportunity.breakEvenSpread)} 后，按当前成本模型转为亏损`,
@@ -377,7 +377,7 @@ function formatOpportunityForClipboard(opportunity: Opportunity, params: Calcula
     "",
     `预计毛收益：${fmt(opportunity.grossPnl)} USD`,
     `预计净收益：${fmt(opportunity.netPnl)} USD (${bps(opportunity.netReturnBps)})`,
-    `状态：${opportunity.profitable ? "高于红线，当前模型为正收益" : "低于红线，当前模型为负收益或边际不足"}`,
+    `状态：${opportunity.profitable ? "按默认收敛目标为正收益" : "按默认收敛目标为负收益或边际不足"}`,
     opportunity.notes.length ? `备注：${opportunity.notes.join("；")}` : ""
   ].filter(Boolean).join("\n");
 }

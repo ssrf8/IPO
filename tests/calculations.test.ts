@@ -47,8 +47,9 @@ describe("calculateOpportunities", () => {
       quote({ venue: "OKX", bid: 110, ask: 111, mid: 110.5 }),
       quote({ venue: "Ventuals", symbol: "vntl:SPACEX", bid: 100, ask: 101, mid: 100.5, settleAsset: "USDH" })
     ], { ...DEFAULT_PARAMS, notionalUsd: 10_000, manualSlippageBps: 0 });
-    expect(opportunities[0].costBreakdown.openFees).toBeCloseTo(10);
-    expect(opportunities[0].costBreakdown.closeFees).toBeCloseTo(10);
+    expect(opportunities[0].longNotional + opportunities[0].shortNotional).toBeCloseTo(10_000);
+    expect(opportunities[0].costBreakdown.openFees).toBeCloseTo(5);
+    expect(opportunities[0].costBreakdown.closeFees).toBeCloseTo(5);
   });
 
   it("applies funding direction: positive long funding is a cost and positive short funding is income", () => {
@@ -56,19 +57,33 @@ describe("calculateOpportunities", () => {
       quote({ venue: "OKX", bid: 110, ask: 111, mid: 110.5, fundingRateHourly: 0.001 }),
       quote({ venue: "Ventuals", symbol: "vntl:SPACEX", bid: 100, ask: 101, mid: 100.5, fundingRateHourly: 0.002, settleAsset: "USDH" })
     ], { ...DEFAULT_PARAMS, notionalUsd: 10_000, holdingHours: 2, manualSlippageBps: 0 });
-    expect(opportunities[0].costBreakdown.funding).toBeCloseTo(20);
+    expect(opportunities[0].costBreakdown.funding).toBeCloseTo(8.72, 2);
   });
 
-  it("raises break-even spread as costs increase", () => {
+  it("lowers the remaining-spread redline as costs increase", () => {
     const quotes = [
       quote({ venue: "OKX", bid: 110, ask: 111, mid: 110.5 }),
       quote({ venue: "Ventuals", symbol: "vntl:SPACEX", bid: 100, ask: 101, mid: 100.5, settleAsset: "USDH" })
     ];
     const lowCost = calculateOpportunities(quotes, { ...DEFAULT_PARAMS, manualSlippageBps: 1 })[0];
     const highCost = calculateOpportunities(quotes, { ...DEFAULT_PARAMS, manualSlippageBps: 50 })[0];
-    expect(highCost.breakEvenSpread).toBeGreaterThan(lowCost.breakEvenSpread);
+    expect(highCost.costSpread).toBeGreaterThan(lowCost.costSpread);
+    expect(highCost.breakEvenSpread).toBeLessThan(lowCost.breakEvenSpread);
     expect(highCost.breakEvenShortPriceAtLongClose).toBeGreaterThan(highCost.expectedClose);
     expect(highCost.breakEvenLongPriceAtShortClose).toBeLessThan(highCost.expectedClose);
+  });
+
+  it("reports the break-even remaining spread instead of only the cost buffer", () => {
+    const opportunities = calculateOpportunities([
+      quote({ venue: "OKX", target: "ANTHROPIC", symbol: "ANTHROPIC-USDT-SWAP", bid: 1717.5, ask: 1718, mid: 1717.75 }),
+      quote({ venue: "Ventuals", target: "ANTHROPIC", symbol: "vntl:ANTHROPIC", bid: 1406, ask: 1406.8, mid: 1406.4, settleAsset: "USDH" })
+    ], { ...DEFAULT_PARAMS, notionalUsd: 500, manualSlippageBps: 10 });
+
+    expect(opportunities[0].longNotional).toBeCloseTo(225.14, 2);
+    expect(opportunities[0].shortNotional).toBeCloseTo(274.86, 2);
+    expect(opportunities[0].executableSpread).toBeCloseTo(310.7);
+    expect(opportunities[0].breakEvenSpread).toBeGreaterThan(290);
+    expect(opportunities[0].breakEvenSpread).toBeLessThan(310.7);
   });
 
   it("falls back to manual slippage when requested orderbook depth is insufficient", () => {

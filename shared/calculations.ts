@@ -50,41 +50,43 @@ function vwap(levels: Array<{ price: number; size: number }>, quantity: number):
   return null;
 }
 
-function orderBookSlippage(quote: MarketQuote, side: "buy" | "sell", notionalUsd: number, referencePrice: number) {
+function orderBookSlippage(quote: MarketQuote, side: "buy" | "sell", quantity: number, referencePrice: number) {
   if (!quote.orderBook) return null;
-  const quantity = notionalUsd / referencePrice;
   const levels = (side === "buy" ? quote.orderBook.asks : quote.orderBook.bids)
-    .map((level) => ({ ...level, price: level.price * quote.canonicalMultiplier }));
+    .map((level) => ({
+      price: level.price * quote.canonicalMultiplier,
+      size: level.size / quote.canonicalMultiplier
+    }));
   const execution = vwap(levels, quantity);
   if (execution == null) return null;
   const diff = side === "buy" ? execution - referencePrice : referencePrice - execution;
   return Math.max(0, diff * quantity);
 }
 
-function estimateSlippage(quote: MarketQuote, side: "buy" | "sell", params: CalculationParams, referencePrice: number) {
+function estimateSlippage(quote: MarketQuote, side: "buy" | "sell", params: CalculationParams, referencePrice: number, quantity: number, notionalUsd: number) {
   if (params.slippageMode === "orderbook") {
-    const fromBook = orderBookSlippage(quote, side, params.notionalUsd, referencePrice);
+    const fromBook = orderBookSlippage(quote, side, quantity, referencePrice);
     if (fromBook != null) return { value: fromBook, note: null };
     return {
-      value: estimateManualSlippage(params.notionalUsd, params.manualSlippageBps),
+      value: estimateManualSlippage(notionalUsd, params.manualSlippageBps),
       note: `${quote.venue} ${quote.symbol} 订单簿深度不足，使用手动滑点`
     };
   }
-  return { value: estimateManualSlippage(params.notionalUsd, params.manualSlippageBps), note: null };
+  return { value: estimateManualSlippage(notionalUsd, params.manualSlippageBps), note: null };
 }
 
-function fundingCost(longQuote: MarketQuote, shortQuote: MarketQuote, params: CalculationParams) {
+function fundingCost(longQuote: MarketQuote, shortQuote: MarketQuote, params: CalculationParams, longNotional: number, shortNotional: number) {
   const longRate = longQuote.fundingRateHourly ?? 0;
   const shortRate = shortQuote.fundingRateHourly ?? 0;
-  const longCost = params.notionalUsd * longRate * params.holdingHours;
-  const shortCost = -params.notionalUsd * shortRate * params.holdingHours;
+  const longCost = longNotional * longRate * params.holdingHours;
+  const shortCost = -shortNotional * shortRate * params.holdingHours;
   return longCost + shortCost;
 }
 
-function stablecoinHaircutCost(longQuote: MarketQuote, shortQuote: MarketQuote, params: CalculationParams) {
+function stablecoinHaircutCost(longQuote: MarketQuote, shortQuote: MarketQuote, params: CalculationParams, longNotional: number, shortNotional: number) {
   const longHaircut = params.stablecoinHaircutsBps[longQuote.settleAsset] ?? 0;
   const shortHaircut = params.stablecoinHaircutsBps[shortQuote.settleAsset] ?? 0;
-  return params.notionalUsd * ((longHaircut + shortHaircut) / 10_000);
+  return longNotional * (longHaircut / 10_000) + shortNotional * (shortHaircut / 10_000);
 }
 
 export function calculateOpportunities(quotes: MarketQuote[], params: CalculationParams): Opportunity[] {
@@ -109,23 +111,28 @@ export function calculateOpportunities(quotes: MarketQuote[], params: Calculatio
         const expectedClose = params.closingPrice && params.closingPrice > 0
           ? params.closingPrice
           : (high.price + low.price) / 2;
-        const quantity = params.notionalUsd / ((shortEntry + longEntry) / 2);
+        const quantity = params.notionalUsd / (shortEntry + longEntry);
+        const longNotional = quantity * longEntry;
+        const shortNotional = quantity * shortEntry;
+        const closeLegNotional = quantity * expectedClose;
         const grossPnl = (shortEntry - expectedClose) * quantity + (expectedClose - longEntry) * quantity;
-        const openFees = params.notionalUsd * (feeRate(high.quote, params.feeModeOpen) + feeRate(low.quote, params.feeModeOpen));
-        const closeFees = params.notionalUsd * (feeRate(high.quote, params.feeModeClose) + feeRate(low.quote, params.feeModeClose));
-        const shortOpenSlippage = estimateSlippage(high.quote, "sell", params, shortEntry);
-        const longOpenSlippage = estimateSlippage(low.quote, "buy", params, longEntry);
-        const shortCloseSlippage = estimateSlippage(high.quote, "buy", params, expectedClose);
-        const longCloseSlippage = estimateSlippage(low.quote, "sell", params, expectedClose);
+        const openFees = shortNotional * feeRate(high.quote, params.feeModeOpen) + longNotional * feeRate(low.quote, params.feeModeOpen);
+        const closeFees = closeLegNotional * (feeRate(high.quote, params.feeModeClose) + feeRate(low.quote, params.feeModeClose));
+        const shortOpenSlippage = estimateSlippage(high.quote, "sell", params, shortEntry, quantity, shortNotional);
+        const longOpenSlippage = estimateSlippage(low.quote, "buy", params, longEntry, quantity, longNotional);
+        const shortCloseSlippage = estimateSlippage(high.quote, "buy", params, expectedClose, quantity, closeLegNotional);
+        const longCloseSlippage = estimateSlippage(low.quote, "sell", params, expectedClose, quantity, closeLegNotional);
         const openSlippage = shortOpenSlippage.value + longOpenSlippage.value;
         const closeSlippage = shortCloseSlippage.value + longCloseSlippage.value;
-        const funding = fundingCost(low.quote, high.quote, params);
-        const stablecoinHaircut = stablecoinHaircutCost(low.quote, high.quote, params);
+        const funding = fundingCost(low.quote, high.quote, params, longNotional, shortNotional);
+        const stablecoinHaircut = stablecoinHaircutCost(low.quote, high.quote, params, longNotional, shortNotional);
         const totalCost = openFees + closeFees + openSlippage + closeSlippage + funding + stablecoinHaircut;
         const netPnl = grossPnl - totalCost;
         const executableSpread = shortEntry - longEntry;
         const executableSpreadBps = executableSpread / longEntry * 10_000;
-        const breakEvenSpread = totalCost / quantity;
+        const costSpread = totalCost / quantity;
+        const costSpreadBps = costSpread / longEntry * 10_000;
+        const breakEvenSpread = executableSpread - costSpread;
         const breakEvenSpreadBps = breakEvenSpread / longEntry * 10_000;
         const breakEvenShortPriceAtLongClose = expectedClose + breakEvenSpread;
         const breakEvenLongPriceAtShortClose = expectedClose - breakEvenSpread;
@@ -148,19 +155,25 @@ export function calculateOpportunities(quotes: MarketQuote[], params: Calculatio
           longEntry,
           shortEntry,
           expectedClose,
+          hedgeQuantity: quantity,
+          longNotional,
+          shortNotional,
+          totalNotional: params.notionalUsd,
           executableSpread,
           executableSpreadBps,
           grossPnl,
           totalCost,
           netPnl,
           netReturnBps: netPnl / params.notionalUsd * 10_000,
+          costSpread,
+          costSpreadBps,
           breakEvenSpread,
           breakEvenSpreadBps,
           breakEvenShortPriceAtLongClose,
           breakEvenLongPriceAtShortClose,
           maxProfitSpread,
           maxProfitPnl,
-          profitable: netPnl > 0 && executableSpread >= breakEvenSpread,
+          profitable: netPnl > 0 && breakEvenSpread >= 0,
           costBreakdown: {
             openFees,
             closeFees,
