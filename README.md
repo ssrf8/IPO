@@ -40,6 +40,7 @@ docker run -d --name ipo-dashboard --restart unless-stopped -p 8848:8848 ipo-das
 - 容器 `PORT` 默认是 `8848`。
 - `HOST` 默认容器部署使用 `0.0.0.0`。
 - 本工具只读分析，不保存 API Key，不下单。
+- 策略层和下单接口准备文档见 [`docs/trading-integration.md`](docs/trading-integration.md)。
 
 ## 导出历史价差
 
